@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#e9eef6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141a26" media="(prefers-color-scheme: dark)">
+<meta name="description" content="Classic Ludo for 2 to 4 players. Play against the computer or with friends on one phone.">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Ludo">
+<title>Ludo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700&display=swap">
+<style>
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+[hidden]{display:none!important}
+
+/* Layout: one column — header, square board, a control tray with dice; rules underneath */
+:root{
+  --bg:#e9eef6; --surface:#ffffff; --fg:#1d2433; --muted:#5d6779; --line:#d3d9e4;
+  --red:#e2453c; --green:#2fa35a; --yellow:#f2b630; --blue:#2e7fd6;
+  --board:#ffffff; --board-line:#cfd5df; --star:#9aa3b2;
+  --display:"Fredoka","Nunito",system-ui,sans-serif;
+  --body:"Nunito",system-ui,-apple-system,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#141a26; --surface:#1f2738; --fg:#eef1f7; --muted:#a3adc0; --line:#323c52; color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#141a26; --surface:#1f2738; --fg:#eef1f7; --muted:#a3adc0; --line:#323c52; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 32px}
+.wrap{max-width:540px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font-family:var(--display);font-weight:700;font-size:2rem;margin:0;letter-spacing:.01em;display:flex;align-items:center;gap:8px}
+h1 .dots{display:inline-grid;grid-template-columns:repeat(2,9px);gap:3px}
+h1 .dots i{width:9px;height:9px;border-radius:50%;display:block}
+.seg{display:flex;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px}
+.seg button{font:600 .9rem var(--body);border:0;background:none;color:var(--muted);padding:8px 14px;border-radius:999px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
+.settings{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.settings .seg::before{content:attr(aria-label);align-self:center;font-size:.8rem;color:var(--muted);padding:0 6px 0 10px}
+.seg.sound{font:600 .9rem var(--body);color:var(--fg);padding:9px 16px;cursor:pointer}
+.seg.sound[aria-pressed="false"]{color:var(--muted);text-decoration:line-through}
+.seg button:focus-visible,.dice:focus-visible,.token:focus-visible,.btn:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+
+/* Board */
+.board{position:relative;width:100%;aspect-ratio:1;max-width:100%;background:var(--board);border-radius:14px;
+  box-shadow:0 10px 30px rgba(20,30,50,.18),0 0 0 6px var(--surface);display:grid;
+  grid-template-columns:repeat(15,1fr);grid-template-rows:repeat(15,1fr);overflow:hidden}
+.cell{border:.5px solid var(--board-line);display:flex;align-items:center;justify-content:center;color:var(--star);font-size:clamp(9px,3vw,16px);line-height:1}
+.base{position:relative;padding:12%}
+.base .yard{position:absolute;inset:14%;background:#fff;border-radius:12%}
+.base .slot{position:absolute;width:20%;height:20%;border-radius:50%;transform:translate(-50%,-50%);opacity:.35}
+.base.idle{filter:saturate(.35) brightness(1.08)}
+.base.active::after{content:"";position:absolute;inset:4px;border:3px solid #fff;border-radius:8px;animation:glow 1.2s ease-in-out infinite alternate}
+@keyframes glow{from{opacity:.35}to{opacity:1}}
+.center{background:conic-gradient(from -45deg,var(--green) 0 90deg,var(--yellow) 90deg 180deg,var(--blue) 180deg 270deg,var(--red) 270deg 360deg)}
+
+.token{position:absolute;width:5.4%;height:5.4%;transform:translate(-50%,-50%) scale(var(--s,1));border-radius:50%;border:0;padding:0;
+  background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.75) 0 14%,transparent 16%),var(--c);
+  box-shadow:0 0 0 2.5px #fff,0 3px 5px rgba(0,0,0,.35);transition:left .14s ease,top .14s ease,transform .2s;cursor:default;z-index:2}
+.token.movable{cursor:pointer;z-index:5;animation:bob .7s ease-in-out infinite alternate}
+@keyframes bob{from{transform:translate(-50%,-50%) scale(var(--s,1))}to{transform:translate(-50%,-62%) scale(calc(var(--s,1)*1.12));box-shadow:0 0 0 3px #fff,0 0 0 6px var(--c),0 8px 10px rgba(0,0,0,.3)}}
+
+/* Controls */
+.tray{display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:12px 14px}
+.dice{flex:none;width:72px;height:72px;border-radius:16px;border:0;background:#fff;cursor:pointer;
+  box-shadow:inset 0 -5px 0 rgba(0,0,0,.12),0 0 0 4px var(--pc,var(--line)),0 4px 10px rgba(0,0,0,.18);
+  display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);padding:11px;transition:transform .15s}
+.dice:disabled{cursor:default;opacity:.75}
+.dice.ready{animation:nudge 1s ease-in-out infinite}
+@keyframes nudge{0%,100%{transform:rotate(0)}10%{transform:rotate(-8deg)}20%{transform:rotate(8deg)}30%{transform:rotate(0)}}
+.dice.rolling{animation:spin .12s linear infinite}
+@keyframes spin{50%{transform:rotate(14deg) scale(.94)}}
+.pip{width:11px;height:11px;border-radius:50%;background:#1d2433;place-self:center;visibility:hidden}
+.pip.on{visibility:visible}
+.info{min-width:0;display:flex;flex-direction:column;gap:4px}
+.who{font-family:var(--display);font-weight:600;font-size:1.25rem;display:flex;align-items:center;gap:8px}
+.who i{width:14px;height:14px;border-radius:50%;display:inline-block;background:var(--pc)}
+.status{color:var(--muted);font-size:.95rem;line-height:1.35}
+.score{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.85rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.score span{display:flex;align-items:center;gap:6px}
+.score i{width:10px;height:10px;border-radius:50%;display:inline-block}
+
+.rules{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:14px 18px;font-size:.92rem;color:var(--muted);line-height:1.5}
+.rules h2{font-family:var(--display);font-size:1.05rem;color:var(--fg);margin:0 0 6px;font-weight:600}
+.rules ul{margin:0;padding-left:18px}
+
+.over{position:absolute;inset:0;background:rgba(15,20,30,.55);display:flex;align-items:center;justify-content:center;z-index:20;border-radius:14px}
+.over .card{background:var(--surface);color:var(--fg);border-radius:18px;padding:22px 26px;text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center;max-width:80%}
+.over h2{font-family:var(--display);margin:0;font-size:1.7rem}
+.btn{font:700 1rem var(--body);border:0;border-radius:999px;padding:11px 22px;background:var(--fg);color:var(--bg);cursor:pointer}
+@media (prefers-reduced-motion:reduce){.token,.token.movable,.dice.ready,.dice.rolling,.base.active::after{animation:none;transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><span class="dots"><i style="background:var(--red)"></i><i style="background:var(--green)"></i><i style="background:var(--blue)"></i><i style="background:var(--yellow)"></i></span>Ludo</h1>
+    <button class="seg sound" id="sound" aria-pressed="true">Sound on</button>
+  </header>
+  <div class="settings">
+    <div class="seg" role="group" aria-label="Who plays">
+      <button id="mode-cpu" aria-pressed="true">vs Computer</button>
+      <button id="mode-2p" aria-pressed="false">With friends</button>
+    </div>
+    <div class="seg" role="group" aria-label="Number of players">
+      <button class="cnt" data-n="2" aria-pressed="true">2</button>
+      <button class="cnt" data-n="3" aria-pressed="false">3</button>
+      <button class="cnt" data-n="4" aria-pressed="false">4</button>
+    </div>
+  </div>
+
+  <div class="board" id="board"></div>
+
+  <div class="tray">
+    <button class="dice" id="dice" aria-label="Roll the dice"></button>
+    <div class="info">
+      <div class="who" id="who"><i></i><span></span></div>
+      <div class="status" id="status"></div>
+      <div class="score" id="score"></div>
+    </div>
+  </div>
+
+  <div class="rules">
+    <h2>How to play</h2>
+    <ul>
+      <li>Tap the dice to roll. Roll a 6 to bring a piece out.</li>
+      <li>Tap a bouncing piece to move it. If only one can move, it moves by itself.</li>
+      <li>Land on your opponent to send them back home. Squares with a ★ and the coloured start squares are safe.</li>
+      <li>A 6 or a capture gives you another roll. Get all 4 pieces to the middle to win. You need the exact number to finish.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+(function(){
+const COLORS={red:'#e2453c',green:'#2fa35a',yellow:'#f2b630',blue:'#2e7fd6'};
+const TRACK=[[6,1],[6,2],[6,3],[6,4],[6,5],[5,6],[4,6],[3,6],[2,6],[1,6],[0,6],[0,7],[0,8],[1,8],[2,8],[3,8],[4,8],[5,8],
+ [6,9],[6,10],[6,11],[6,12],[6,13],[6,14],[7,14],[8,14],[8,13],[8,12],[8,11],[8,10],[8,9],[9,8],[10,8],[11,8],[12,8],[13,8],[14,8],
+ [14,7],[14,6],[13,6],[12,6],[11,6],[10,6],[9,6],[8,5],[8,4],[8,3],[8,2],[8,1],[8,0],[7,0],[6,0]];
+const START={red:0,green:13,yellow:26,blue:39};
+const HOME={red:[[7,1],[7,2],[7,3],[7,4],[7,5]],yellow:[[7,13],[7,12],[7,11],[7,10],[7,9]],
+ green:[[1,7],[2,7],[3,7],[4,7],[5,7]],blue:[[13,7],[12,7],[11,7],[10,7],[9,7]]};
+const SAFE=new Set([0,8,13,21,26,34,39,47]);
+const BASE={red:[0,0],green:[0,9],yellow:[9,9],blue:[9,0]};
+const FIN={red:[7.5,6.55],yellow:[7.5,8.45],green:[6.55,7.5],blue:[8.45,7.5]};
+const SLOTS=[[1.75,1.75],[1.75,4.25],[4.25,1.75],[4.25,4.25]];
+const PIPS={1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
+
+const $=id=>document.getElementById(id);
+const board=$('board'),dice=$('dice'),statusEl=$('status'),whoEl=$('who'),scoreEl=$('score');
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let G=null,tokens={},gameId=0;
+
+/* ---------- draw the board ---------- */
+function drawBoard(){
+  board.innerHTML='';
+  for(const c of ['red','green','yellow','blue']){
+    const [r0,c0]=BASE[c],b=document.createElement('div');
+    b.className='base';b.id='base-'+c;b.style.background=COLORS[c];
+    b.style.gridArea=`${r0+1}/${c0+1}/${r0+7}/${c0+7}`;
+    b.innerHTML='<div class="yard"></div>'+SLOTS.map(([y,x])=>`<div class="slot" style="left:${x/6*100}%;top:${y/6*100}%;background:${COLORS[c]}"></div>`).join('');
+    board.appendChild(b);
+  }
+  const ctr=document.createElement('div');ctr.className='center';ctr.style.gridArea='7/7/10/10';board.appendChild(ctr);
+  const add=(r,c,bg,txt)=>{const d=document.createElement('div');d.className='cell';d.style.gridArea=`${r+1}/${c+1}`;if(bg)d.style.background=bg;if(txt)d.textContent=txt;board.appendChild(d);};
+  TRACK.forEach(([r,c],i)=>{
+    const owner=Object.keys(START).find(k=>START[k]===i);
+    add(r,c,owner?COLORS[owner]:null,!owner&&SAFE.has(i)?'★':'');
+  });
+  for(const c in HOME)HOME[c].forEach(([r,cc])=>add(r,cc,COLORS[c]));
+}
+
+/* ---------- game state ---------- */
+const SEATS={2:['red','yellow'],3:['red','green','yellow'],4:['red','green','yellow','blue']};
+const CAP=c=>c[0].toUpperCase()+c.slice(1);
+let mode='cpu',count=2;
+function newGame(){
+  gameId++;
+  const cpu=mode==='cpu',seats=SEATS[count];
+  const players=seats.map((c,k)=>({color:c,ai:cpu&&k>0,
+    name:cpu?(k===0?'You':(count===2?'Computer':CAP(c)+' computer')):'Player '+(k+1)}));
+  const pieces={};seats.forEach(c=>pieces[c]=[-1,-1,-1,-1]);
+  G={mode,players,pieces,turn:0,roll:null,phase:'roll',options:[]};
+  drawBoard();
+  Object.keys(COLORS).filter(c=>!seats.includes(c)).forEach(c=>$('base-'+c).classList.add('idle'));
+  document.querySelectorAll('.cnt').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.n===count));
+  tokens={};
+  G.players.forEach(p=>G.pieces[p.color].forEach((_,i)=>{
+    const t=document.createElement('button');t.className='token';t.style.setProperty('--c',COLORS[p.color]);
+    t.setAttribute('aria-label',`${p.color} piece ${i+1}`);
+    t.addEventListener('click',()=>pick(p.color,i));
+    board.appendChild(t);tokens[p.color+i]=t;
+  }));
+  $('mode-cpu').setAttribute('aria-pressed',cpu);$('mode-2p').setAttribute('aria-pressed',!cpu);
+  setFace(6);render();startTurn();
+}
+const cur=()=>G.players[G.turn];
+const trackIdx=(c,p)=>(START[c]+p)%52;
+function canMove(c,i,r){const p=G.pieces[c][i];if(p===56)return false;if(p===-1)return r===6;return p+r<=56;}
+
+/* ---------- rendering ---------- */
+function posOf(c,i){
+  const p=G.pieces[c][i];
+  if(p===-1){const [r0,c0]=BASE[c];return {key:'b'+c+i,y:r0+SLOTS[i][0],x:c0+SLOTS[i][1]};}
+  if(p===56)return {key:'f'+c,y:FIN[c][0],x:FIN[c][1]};
+  const [r,cc]=p<=50?TRACK[trackIdx(c,p)]:HOME[c][p-51];
+  return {key:r+'-'+cc,y:r+.5,x:cc+.5};
+}
+const OFF={1:[[0,0]],2:[[-.2,-.2],[.2,.2]],3:[[-.2,-.2],[.2,-.2],[0,.2]],4:[[-.2,-.2],[.2,-.2],[-.2,.2],[.2,.2]]};
+function render(){
+  const groups={};
+  G.players.forEach(pl=>G.pieces[pl.color].forEach((_,i)=>{const ps=posOf(pl.color,i);(groups[ps.key]=groups[ps.key]||[]).push({c:pl.color,i,ps});}));
+  Object.values(groups).forEach(g=>{
+    const n=Math.min(g.length,4);
+    g.forEach((o,k)=>{const off=OFF[n][k%4],t=tokens[o.c+o.i];
+      t.style.left=((o.ps.x+off[0])/15*100)+'%';t.style.top=((o.ps.y+off[1])/15*100)+'%';
+      t.style.setProperty('--s',n>1?.72:1);});
+  });
+  const pl=cur();
+  document.querySelectorAll('.token').forEach(t=>t.classList.remove('movable'));
+  if(G.phase==='pick'&&!pl.ai)G.options.forEach(i=>tokens[pl.color+i].classList.add('movable'));
+  G.players.forEach(p=>$('base-'+p.color).classList.toggle('active',p===pl&&G.phase!=='over'));
+  document.documentElement.style.setProperty('--pc',COLORS[pl.color]);
+  whoEl.style.setProperty('--pc',COLORS[pl.color]);
+  dice.style.setProperty('--pc',COLORS[pl.color]);
+  whoEl.querySelector('span').textContent=pl.ai?pl.name:(G.mode==='cpu'?'Your turn':pl.name+"'s turn");
+  const humanRoll=G.phase==='roll'&&!pl.ai;
+  dice.disabled=!humanRoll;dice.classList.toggle('ready',humanRoll);
+  scoreEl.innerHTML=G.players.map(p=>`<span><i style="background:${COLORS[p.color]}"></i>${p.name}: ${G.pieces[p.color].filter(x=>x===56).length}/4 home</span>`).join('');
+}
+function setFace(v){dice.innerHTML=Array.from({length:9},(_,k)=>`<span class="pip${PIPS[v].includes(k)?' on':''}"></span>`).join('');}
+const say=t=>statusEl.textContent=t;
+
+/* ---------- turn flow ---------- */
+function startTurn(){
+  G.phase='roll';G.roll=null;G.options=[];render();
+  const pl=cur();
+  if(pl.ai){say(pl.name+' is rolling…');const id=gameId;setTimeout(()=>{if(id===gameId)roll();},800);}
+  else say(G.pieces[pl.color].every(p=>p===-1)?'Tap the dice. You need a 6 to bring a piece out.':'Tap the dice to roll.');
+}
+async function roll(){
+  if(G.phase!=='roll')return;
+  const id=gameId;G.phase='rolling';render();dice.classList.add('rolling');
+  for(let k=0;k<8;k++){setFace(1+Math.floor(Math.random()*6));SFX.rattle();await sleep(60);}
+  if(id!==gameId)return;
+  const v=1+Math.floor(Math.random()*6);G.roll=v;setFace(v);dice.classList.remove('rolling');
+  const pl=cur();
+  G.options=[0,1,2,3].filter(i=>canMove(pl.color,i,v));
+  const who=pl.name;SFX.land(v);
+  if(!G.options.length){
+    say(`${who} rolled ${v}. No piece can move.`);G.phase='wait';render();
+    await sleep(1100);if(id!==gameId)return;
+    if(v===6)startTurn();else nextTurn();return;
+  }
+  if(pl.ai){say(`${who} rolled ${v}.`);G.phase='wait';render();await sleep(600);if(id!==gameId)return;doMove(pl.color,aiChoose(pl.color,v));return;}
+  if(G.options.length===1){say(`${who} rolled ${v}.`);G.phase='wait';render();await sleep(450);if(id!==gameId)return;doMove(pl.color,G.options[0]);return;}
+  G.phase='pick';say(`${who} rolled ${v}. Tap a bouncing piece to move it.`);render();
+}
+function pick(c,i){if(G.phase!=='pick'||cur().color!==c||!G.options.includes(i))return;doMove(c,i);}
+
+async function doMove(c,i){
+  const id=gameId,r=G.roll;G.phase='moving';render();
+  if(G.pieces[c][i]===-1){G.pieces[c][i]=0;SFX.out();render();await sleep(220);}
+  else for(let k=0;k<r;k++){G.pieces[c][i]++;SFX.step();render();await sleep(150);if(id!==gameId)return;}
+  const p=G.pieces[c][i];let captured=false;
+  if(p<=50){const idx=trackIdx(c,p);
+    if(!SAFE.has(idx))G.players.forEach(o=>{if(o.color===c)return;
+      G.pieces[o.color].forEach((op,j)=>{if(op>=0&&op<=50&&trackIdx(o.color,op)===idx){G.pieces[o.color][j]=-1;captured=true;}});});}
+  render();
+  const pl=cur(),who=pl.name;
+  if(G.pieces[c].every(x=>x===56)){G.phase='over';render();SFX.win();showWin(pl);return;}
+  const finished=p===56;
+  if(captured)SFX.capture();else if(finished)SFX.home();
+  if(r===6||captured||finished){
+    await sleep(350);if(id!==gameId)return;
+    startTurn();
+    say((captured?`${who} captured a piece! `:finished?`${who} got a piece home! `:`${who} rolled a 6! `)+(pl.ai?'Rolling again…':'Roll again.'));
+  } else {await sleep(250);if(id!==gameId)return;nextTurn();}
+}
+function nextTurn(){G.turn=(G.turn+1)%G.players.length;startTurn();}
+
+/* ---------- computer player ---------- */
+function threatened(idx,c){
+  return G.players.some(o=>o.color!==c&&G.pieces[o.color].some(op=>{
+    if(op<0||op>50)return false;const d=(idx-trackIdx(o.color,op)+52)%52;return d>=1&&d<=6&&op+d<=50;}));
+}
+function occupiedByOpp(idx,c){return G.players.some(o=>o.color!==c&&G.pieces[o.color].some(op=>op>=0&&op<=50&&trackIdx(o.color,op)===idx));}
+function aiChoose(c,r){
+  let best=G.options[0],bs=-1e9;
+  G.options.forEach(i=>{
+    const p=G.pieces[c][i];let s;
+    if(p===-1){s=60;if(occupiedByOpp(START[c],c))s+=10;}
+    else{const np=p+r;s=np*.5;
+      if(np===56)s+=100;
+      else if(np>50)s+=40;
+      else{const idx=trackIdx(c,np);
+        if(!SAFE.has(idx)&&occupiedByOpp(idx,c))s+=120;
+        if(SAFE.has(idx))s+=15;else if(threatened(idx,c))s-=45;}
+      if(p<=50){const ci=trackIdx(c,p);if(!SAFE.has(ci)&&threatened(ci,c))s+=30;}}
+    s+=Math.random()*3;
+    if(s>bs){bs=s;best=i;}
+  });
+  return best;
+}
+
+/* ---------- end of game ---------- */
+function showWin(pl){
+  const msg=pl.ai?pl.name+' wins':(G.mode==='cpu'?'You win!':pl.name+' wins!');
+  say(msg);
+  const o=document.createElement('div');o.className='over';
+  o.innerHTML=`<div class="card"><h2>${msg}</h2><div style="color:var(--muted)">${pl.ai?'Better luck next time.':'All four pieces made it home.'}</div><button class="btn" id="again">Play again</button></div>`;
+  board.appendChild(o);$('again').addEventListener('click',newGame);
+}
+
+/* ---------- sound ---------- */
+let actx=null,soundOn=true;
+try{soundOn=localStorage.getItem('ludo-sound')!=='off';}catch(e){}
+function ac(){
+  if(!actx){try{actx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){return null;}}
+  if(actx.state==='suspended')actx.resume();return actx;
+}
+function tone(f,dur,type,vol,delay,f2){
+  if(!soundOn)return;const a=ac();if(!a)return;
+  const t=a.currentTime+(delay||0),o=a.createOscillator(),g=a.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+dur);
+  g.gain.setValueAtTime(vol||.12,t);g.gain.exponentialRampToValueAtTime(.001,t+dur);
+  o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+dur+.02);
+}
+const SFX={
+  rattle:()=>tone(180+Math.random()*260,.035,'square',.04),
+  land:v=>v===6?[523,784].forEach((f,k)=>tone(f,.15,'triangle',.12,k*.07)):tone(330,.08,'triangle',.1),
+  step:()=>tone(700,.05,'triangle',.07),
+  out:()=>{tone(440,.1,'triangle',.12);tone(660,.14,'triangle',.12,.08);},
+  capture:()=>tone(520,.4,'sawtooth',.1,0,110),
+  home:()=>[523,659,784].forEach((f,k)=>tone(f,.2,'triangle',.13,k*.09)),
+  win:()=>[523,659,784,1047,784,1047].forEach((f,k)=>tone(f,.25,'triangle',.14,k*.13))
+};
+const soundBtn=$('sound');
+function showSound(){soundBtn.setAttribute('aria-pressed',soundOn);soundBtn.textContent=soundOn?'Sound on':'Sound off';}
+soundBtn.addEventListener('click',()=>{soundOn=!soundOn;try{localStorage.setItem('ludo-sound',soundOn?'on':'off');}catch(e){}showSound();if(soundOn){ac();tone(660,.08,'triangle',.1);}});
+document.addEventListener('pointerdown',()=>{if(soundOn)ac();},{once:true});
+showSound();
+
+dice.addEventListener('click',roll);
+$('mode-cpu').addEventListener('click',()=>{mode='cpu';newGame();});
+$('mode-2p').addEventListener('click',()=>{mode='2p';newGame();});
+document.querySelectorAll('.cnt').forEach(b=>b.addEventListener('click',()=>{count=+b.dataset.n;newGame();}));
+newGame();
+})();
+</script>
+<script>
+if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}
+</script>
+</body>
+</html>
